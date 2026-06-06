@@ -7,6 +7,20 @@ describe("escapeForJS", () => {
     expect(escapeForJS(`it's`)).toBe(`it\\'s`);
     expect(escapeForJS(`"hi"`)).toBe(`\\"hi\\"`);
   });
+
+  it("escapes newlines and carriage returns", () => {
+    expect(escapeForJS("line1\nline2")).toBe("line1\\nline2");
+    expect(escapeForJS("a\rb")).toBe("a\\rb");
+  });
+
+  it("handles empty string", () => {
+    expect(escapeForJS("")).toBe("");
+  });
+
+  it("handles combined dangerous characters", () => {
+    // backslash, single quote, double quote, newline together
+    expect(escapeForJS("a\\b'c\"d\ne")).toBe("a\\\\b\\'c\\\"d\\ne");
+  });
 });
 
 describe("getLoginScript", () => {
