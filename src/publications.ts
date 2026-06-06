@@ -32,4 +32,32 @@ export type FindResult =
   | { kind: "ambiguous"; matches: Publication[] }
   | { kind: "not-found" };
 
-// findPublication is implemented in Task 4
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[\s_'\-]/g, "");
+}
+
+export function findPublication(name: string): FindResult {
+  const needle = normalize(name);
+  if (needle === "") return { kind: "not-found" };
+
+  const haystacks = publications.map(p => ({
+    publication: p,
+    keys: [normalize(p.id), normalize(p.title), normalize(p.subtitle)],
+  }));
+
+  const exact = haystacks.filter(h => h.keys.includes(needle));
+  if (exact.length === 1) return { kind: "found", publication: exact[0].publication };
+  if (exact.length > 1) {
+    return { kind: "ambiguous", matches: exact.map(h => h.publication) };
+  }
+
+  const substr = haystacks.filter(h => h.keys.some(k => k.includes(needle)));
+  if (substr.length === 1) return { kind: "found", publication: substr[0].publication };
+  if (substr.length > 1) {
+    return { kind: "ambiguous", matches: substr.map(h => h.publication) };
+  }
+
+  return { kind: "not-found" };
+}
