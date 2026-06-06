@@ -1,0 +1,24 @@
+{
+  "name": "nl-library-mcp",
+  "version": "0.1.0",
+  "description": "국립중앙도서관 자동 로그인 → PressReader 등 14개 매체 접속 MCP 서버",
+  "type": "module",
+  "bin": {
+    "library-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.2",
+    "vitest": "^1.0.0"
+  }
+}
