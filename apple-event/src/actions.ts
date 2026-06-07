@@ -286,18 +286,27 @@ end tell
 
 delay ${DELAY.MEDIUM}
 
--- Click the target archive post
+-- Click the target archive post (force same-tab navigation so the
+-- fallback check below can see the viewer page in the active tab).
 tell application "samu-webbrowser"
   set activeTab to active tab of front window
   execute activeTab javascript "
     (function(){
+      // Force any popup-based navigation to stay in the current tab.
+      window.open = function(url){ if (url) window.location.href = url; return window; };
+
       const all = Array.from(document.querySelectorAll('a, td, tr'));
       const target = all.find(el => (el.textContent || '').trim().includes('${safePostTitle}'));
       if (!target) return { clicked: false, reason: 'not-found' };
       const link = target.tagName === 'A' ? target
                  : target.querySelector('a')
                  || target.closest('a');
-      if (link) { link.click(); return { clicked: true, href: link.href }; }
+      if (link) {
+        link.removeAttribute('target');
+        link.removeAttribute('rel');
+        link.click();
+        return { clicked: true, href: link.href };
+      }
       target.click();
       return { clicked: true, tag: target.tagName };
     })();
@@ -305,9 +314,65 @@ tell application "samu-webbrowser"
 end tell
 
 delay ${DELAY.MEDIUM}
+delay ${DELAY.MEDIUM}
+
+-- Fallback: 오늘자 PDF가 없으면 KST 기준 어제 날짜(ymd=YYYYMMDD)로 재시도
+set pdfStatus to "ok"
+tell application "samu-webbrowser"
+  set activeTab to active tab of front window
+  set hasNoPdf to (execute activeTab javascript "
+    (document.body && (document.body.innerText || '').includes('PDF가 없습니다')) ? 'true' : 'false';
+  ")
+end tell
+
+if hasNoPdf is "true" then
+  set yDate to (current date) - (1 * days)
+  set yYear to (year of yDate) as string
+  set yMonth to (month of yDate) as integer
+  set yDay to day of yDate
+  set mmStr to text -2 thru -1 of ("0" & yMonth)
+  set ddStr to text -2 thru -1 of ("0" & yDay)
+  set ymd to yYear & mmStr & ddStr
+
+  tell application "samu-webbrowser"
+    set activeTab to active tab of front window
+    execute activeTab javascript "
+      (function(){
+        const url = new URL(window.location.href);
+        url.searchParams.set('ymd', '" & ymd & "');
+        window.location.href = url.toString();
+      })();
+    "
+  end tell
+
+  delay ${DELAY.MEDIUM}
+
+  tell application "samu-webbrowser"
+    set activeTab to active tab of front window
+    set stillNoPdf to (execute activeTab javascript "
+      (document.body && (document.body.innerText || '').includes('PDF가 없습니다')) ? 'true' : 'false';
+    ")
+  end tell
+
+  if stillNoPdf is "true" then
+    set pdfStatus to "nopdf:" & ymd
+  else
+    set pdfStatus to "fallback:" & ymd
+  end if
+end if
+
+return pdfStatus
 `;
 
-  runOsascript(script);
+  const status = runOsascript(script);
+  if (status.startsWith("fallback:")) {
+    const ymd = status.slice("fallback:".length);
+    return `오늘자 신문은 발행되지 않았습니다. ${ymd}자 신문으로 표시합니다.`;
+  }
+  if (status.startsWith("nopdf:")) {
+    const ymd = status.slice("nopdf:".length);
+    return `오늘자 신문은 발행되지 않았습니다. ${ymd}자 신문도 PDF 없음 (완료).`;
+  }
   return successMessage;
 }
 
