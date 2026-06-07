@@ -1,5 +1,5 @@
 export type PublicationType = "service" | "newspaper" | "magazine";
-export type Handler = "pressreader" | "newspaper" | "oreilly";
+export type Handler = "pressreader" | "newspaper" | "oreilly" | "chosun-archive";
 
 export interface Publication {
   id: string;
@@ -25,6 +25,7 @@ export const publications: Publication[] = [
   { id: "level",           title: "Level",               subtitle: "Level (Game Magazine)",          type: "magazine",  handler: "newspaper", urlPath: "/ko/magazines/m/level" },
   { id: "wired",           title: "Wired",               subtitle: "Wired Magazine",                 type: "magazine",  handler: "newspaper", urlPath: "/ko/magazines/m/wired" },
   { id: "opensource",      title: "Open Source For You", subtitle: "Open Source Magazine",           type: "magazine",  handler: "newspaper", urlPath: "/ko/magazines/m/open-source-for-you" },
+  { id: "chosun",          title: "조선일보",             subtitle: "조선일보 아카이브 (NL Web DB)",    type: "newspaper", handler: "chosun-archive" },
 ];
 
 export type FindResult =

@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CREDENTIALS_PATH, DELAY } from "./config.js";
-import { getLoginScript, getNavigateToPressReaderScript, type Credentials } from "./applescript.js";
+import { escapeForJS, getLoginScript, getNavigateToPressReaderScript, type Credentials } from "./applescript.js";
 import type { Publication } from "./publications.js";
 
 interface StoredCredentials {
@@ -126,13 +126,15 @@ tell application "samu-webbrowser"
         if (r.width > 200 && r.height > 200) { modal = el; break; }
       }
       if (!modal) return { action: 'no-modal' };
-      // Look for the primary CTA inside the modal only.
+      // CTA must be EXACT text match and contain NO image (image-bearing
+      // anchors are recommended-publication thumbnails which redirect to
+      // a different magazine/newspaper).
       const cta = Array.from(modal.querySelectorAll('button, a')).find(el => {
+        if (el.querySelector('img')) return false;
         const t = (el.textContent || '').trim();
-        return t === 'Start reading now' || t.toLowerCase() === 'start reading now'
-            || t === '지금 읽기' || t.toLowerCase().includes('start reading');
+        return t === 'Start reading now' || t === '지금 읽기';
       });
-      if (cta) { cta.click(); return { action: 'clicked-start-reading' }; }
+      if (cta) { cta.click(); return { action: 'clicked', tag: cta.tagName, cls: cta.className }; }
       return { action: 'modal-but-no-cta', modalClass: modal.className };
     })();
   "
@@ -186,6 +188,115 @@ delay ${DELAY.LONG}
   return "O'Reilly 접속 완료";
 }
 
+async function openChosunArchive(): Promise<string> {
+  const creds = loadCredentials();
+  // 조선일보 아카이브: 보스 안내대로 세종도서관 자체 로그인 경로로 진입한다.
+  //   1. sejong.nl.go.kr 메인 진입
+  //   2. 상단 '로그인' 링크 클릭
+  //   3. 세종 로그인 폼(#u_id/#pword)에 NL 계정 동일 자격증명 채움
+  //   4. OS Enter로 form submit
+  //   5. 게시판 URL navigate
+  //   6. '[전자신문]조선일보 아카이브' 게시글 클릭
+  // NL(www.nl.go.kr) 로그인 단계는 건너뛴다 (subdomain 쿠키 공유 안 됨).
+  const sejongHome = "https://sejong.nl.go.kr/";
+  const sejongBoardUrl =
+    "https://sejong.nl.go.kr/brd/NttList.do?bbsSe=BBST030&menuId=O216&upperMenuId=O200&proxyYn=Y";
+  const safeUser = escapeForJS(creds.username);
+  const safePass = escapeForJS(creds.password);
+
+  const script = `
+tell application "samu-webbrowser"
+  activate
+  open location "${sejongHome}"
+  delay ${DELAY.LONG}
+  set activeTab to active tab of front window
+  delay ${DELAY.SHORT}
+end tell
+
+-- Dismiss any popup/banner on first visit
+tell application "System Events"
+  repeat 2 times
+    delay ${DELAY.SHORT}
+    keystroke return
+  end repeat
+end tell
+
+delay ${DELAY.SHORT}
+
+-- Click the top-nav '로그인' link
+tell application "samu-webbrowser"
+  set activeTab to active tab of front window
+  execute activeTab javascript "
+    const links = Array.from(document.querySelectorAll('a'));
+    const login = links.find(a => (a.textContent || '').trim() === '로그인');
+    if (login) login.click();
+  "
+end tell
+
+delay ${DELAY.LONG}
+
+-- Override window.alert/confirm BEFORE clicking #toSumbit so the native
+-- "로그인 되었습니다." dialog never blocks subsequent JS evaluation.
+-- (System Events keystroke can't dismiss it without Accessibility
+-- permissions on the spawning process.)
+tell application "samu-webbrowser"
+  set activeTab to active tab of front window
+  execute activeTab javascript "
+    window.__seen_alerts = [];
+    window.alert = function(m){ window.__seen_alerts.push(m); };
+    window.confirm = function(){ return true; };
+
+    const u = document.getElementById('u_id');
+    const p = document.getElementById('pword');
+    if (u && p) {
+      u.value = '${safeUser}';
+      p.value = '${safePass}';
+      u.dispatchEvent(new Event('input', {bubbles:true}));
+      u.dispatchEvent(new Event('change', {bubbles:true}));
+      p.dispatchEvent(new Event('input', {bubbles:true}));
+      p.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+    const btn = document.getElementById('toSumbit');
+    if (btn) btn.click();
+  "
+end tell
+
+delay ${DELAY.LONG}
+delay ${DELAY.LONG}
+
+-- Navigate to the board page
+tell application "samu-webbrowser"
+  set activeTab to active tab of front window
+  execute activeTab javascript "window.location.href = '${sejongBoardUrl}';"
+end tell
+
+delay ${DELAY.LONG}
+
+-- Click the chosun archive post
+tell application "samu-webbrowser"
+  set activeTab to active tab of front window
+  execute activeTab javascript "
+    (function(){
+      const all = Array.from(document.querySelectorAll('a, td, tr'));
+      const target = all.find(el => (el.textContent || '').trim().includes('조선일보 아카이브'));
+      if (!target) return { clicked: false, reason: 'not-found' };
+      const link = target.tagName === 'A' ? target
+                 : target.querySelector('a')
+                 || target.closest('a');
+      if (link) { link.click(); return { clicked: true, href: link.href }; }
+      target.click();
+      return { clicked: true, tag: target.tagName };
+    })();
+  "
+end tell
+
+delay ${DELAY.LONG}
+`;
+
+  runOsascript(script);
+  return "조선일보 아카이브 (세종도서관) 접속 완료";
+}
+
 export async function openPublication(pub: Publication): Promise<string> {
   switch (pub.handler) {
     case "pressreader":
@@ -195,5 +306,7 @@ export async function openPublication(pub: Publication): Promise<string> {
       return openNewspaper(pub.urlPath, `${pub.title} 열기 완료`);
     case "oreilly":
       return openOreillyEbook();
+    case "chosun-archive":
+      return openChosunArchive();
   }
 }
