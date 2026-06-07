@@ -106,7 +106,8 @@ export async function handleCallTool(req: CallToolRequest): Promise<CallToolResu
       if (e instanceof CredentialsError) return errorResult(e.message);
       if (e instanceof LoginFailedError) return errorResult(e.message);
       if (e instanceof ScriptExecutionError) return errorResult(e.message);
-      return errorResult(`예상치 못한 오류: ${(e as Error).message}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      return errorResult(`예상치 못한 오류: ${msg}`);
     }
   }
 

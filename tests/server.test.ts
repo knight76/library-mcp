@@ -107,6 +107,24 @@ describe("handleCallTool — open_publication", () => {
     expect(res.isError).toBe(true);
     expect((res.content[0] as { text: string }).text).toContain("Chrome not running");
   });
+
+  it("returns 예상치 못한 오류 for untyped Error fallthrough", async () => {
+    vi.mocked(openPublication).mockRejectedValue(new Error("something else"));
+    const res = await handleCallTool(callRequest("open_publication", { name: "hankyoreh" }));
+    expect(res.isError).toBe(true);
+    const text = (res.content[0] as { text: string }).text;
+    expect(text).toContain("예상치 못한 오류");
+    expect(text).toContain("something else");
+  });
+
+  it("handles non-Error throws without producing 'undefined' message", async () => {
+    vi.mocked(openPublication).mockRejectedValue("a raw string");
+    const res = await handleCallTool(callRequest("open_publication", { name: "hankyoreh" }));
+    expect(res.isError).toBe(true);
+    const text = (res.content[0] as { text: string }).text;
+    expect(text).not.toContain("undefined");
+    expect(text).toContain("a raw string");
+  });
 });
 
 describe("handleCallTool — unknown tool", () => {
