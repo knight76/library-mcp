@@ -103,7 +103,7 @@ tell application "samu-webbrowser"
   execute activeTab javascript "window.location.href = '${fullUrl}';"
 end tell
 
-delay ${DELAY.LONG}
+delay ${DELAY.MEDIUM}
 
 -- PressReader HotSpot welcome 모달이 간헐적으로 뜸. 떴을 때만 모달 안의
 -- 'Start reading now' 버튼을 클릭한다. (X로 닫지 않음 — Start reading
@@ -155,7 +155,7 @@ tell application "samu-webbrowser"
   execute activeTab javascript "window.location.href = '${oreillyPageUrl}';"
 end tell
 
-delay ${DELAY.LONG}
+delay ${DELAY.MEDIUM}
 
 tell application "samu-webbrowser"
   set activeTab to active tab of front window
@@ -179,8 +179,8 @@ tell application "System Events"
   keystroke return
 end tell
 
-delay ${DELAY.LONG}
-delay ${DELAY.LONG}
+delay ${DELAY.MEDIUM}
+delay ${DELAY.MEDIUM}
 
 `;
 
@@ -190,13 +190,13 @@ delay ${DELAY.LONG}
 
 async function openChosunArchive(): Promise<string> {
   const creds = loadCredentials();
-  // 조선일보 아카이브: 보스 안내대로 세종도서관 자체 로그인 경로로 진입한다.
+  // 조선일보 아카이브: 세종도서관 자체 로그인 경로로 진입.
   //   1. sejong.nl.go.kr 메인 진입
-  //   2. 상단 '로그인' 링크 클릭
-  //   3. 세종 로그인 폼(#u_id/#pword)에 NL 계정 동일 자격증명 채움
-  //   4. OS Enter로 form submit
-  //   5. 게시판 URL navigate
-  //   6. '[전자신문]조선일보 아카이브' 게시글 클릭
+  //   2. 상단에 '로그아웃'이 있으면 이미 로그인됨 → 3~5 건너뜀
+  //   3. 상단 '로그인' 링크 클릭
+  //   4. 세종 로그인 폼(#u_id/#pword) 자격증명 채움
+  //   5. #toSumbit 클릭 (native alert는 JS overwrite로 무력화)
+  //   6. 전자신문 게시판 URL navigate
   // NL(www.nl.go.kr) 로그인 단계는 건너뛴다 (subdomain 쿠키 공유 안 됨).
   const sejongHome = "https://sejong.nl.go.kr/";
   const sejongBoardUrl =
@@ -208,7 +208,7 @@ async function openChosunArchive(): Promise<string> {
 tell application "samu-webbrowser"
   activate
   open location "${sejongHome}"
-  delay ${DELAY.LONG}
+  delay ${DELAY.MEDIUM}
   set activeTab to active tab of front window
   delay ${DELAY.SHORT}
 end tell
@@ -223,46 +223,58 @@ end tell
 
 delay ${DELAY.SHORT}
 
--- Click the top-nav '로그인' link
+-- Check whether already logged in (top nav contains '로그아웃')
+set isLoggedIn to "false"
 tell application "samu-webbrowser"
   set activeTab to active tab of front window
-  execute activeTab javascript "
-    const links = Array.from(document.querySelectorAll('a'));
-    const login = links.find(a => (a.textContent || '').trim() === '로그인');
-    if (login) login.click();
-  "
+  set isLoggedIn to (execute activeTab javascript "
+    (function(){
+      const all = Array.from(document.querySelectorAll('a, button, span'));
+      return all.some(el => (el.textContent || '').trim() === '로그아웃') ? 'true' : 'false';
+    })();
+  ")
 end tell
 
-delay ${DELAY.LONG}
+if isLoggedIn is "false" then
+  -- Click the top-nav '로그인' link
+  tell application "samu-webbrowser"
+    set activeTab to active tab of front window
+    execute activeTab javascript "
+      const links = Array.from(document.querySelectorAll('a'));
+      const login = links.find(a => (a.textContent || '').trim() === '로그인');
+      if (login) login.click();
+    "
+  end tell
 
--- Override window.alert/confirm BEFORE clicking #toSumbit so the native
--- "로그인 되었습니다." dialog never blocks subsequent JS evaluation.
--- (System Events keystroke can't dismiss it without Accessibility
--- permissions on the spawning process.)
-tell application "samu-webbrowser"
-  set activeTab to active tab of front window
-  execute activeTab javascript "
-    window.__seen_alerts = [];
-    window.alert = function(m){ window.__seen_alerts.push(m); };
-    window.confirm = function(){ return true; };
+  delay ${DELAY.MEDIUM}
 
-    const u = document.getElementById('u_id');
-    const p = document.getElementById('pword');
-    if (u && p) {
-      u.value = '${safeUser}';
-      p.value = '${safePass}';
-      u.dispatchEvent(new Event('input', {bubbles:true}));
-      u.dispatchEvent(new Event('change', {bubbles:true}));
-      p.dispatchEvent(new Event('input', {bubbles:true}));
-      p.dispatchEvent(new Event('change', {bubbles:true}));
-    }
-    const btn = document.getElementById('toSumbit');
-    if (btn) btn.click();
-  "
-end tell
+  -- Override window.alert/confirm BEFORE clicking #toSumbit so the native
+  -- "로그인 되었습니다." dialog never blocks subsequent JS evaluation.
+  tell application "samu-webbrowser"
+    set activeTab to active tab of front window
+    execute activeTab javascript "
+      window.__seen_alerts = [];
+      window.alert = function(m){ window.__seen_alerts.push(m); };
+      window.confirm = function(){ return true; };
 
-delay ${DELAY.LONG}
-delay ${DELAY.LONG}
+      const u = document.getElementById('u_id');
+      const p = document.getElementById('pword');
+      if (u && p) {
+        u.value = '${safeUser}';
+        p.value = '${safePass}';
+        u.dispatchEvent(new Event('input', {bubbles:true}));
+        u.dispatchEvent(new Event('change', {bubbles:true}));
+        p.dispatchEvent(new Event('input', {bubbles:true}));
+        p.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+      const btn = document.getElementById('toSumbit');
+      if (btn) btn.click();
+    "
+  end tell
+
+  delay ${DELAY.MEDIUM}
+  delay ${DELAY.MEDIUM}
+end if
 
 -- Navigate to the board page
 tell application "samu-webbrowser"
@@ -270,7 +282,7 @@ tell application "samu-webbrowser"
   execute activeTab javascript "window.location.href = '${sejongBoardUrl}';"
 end tell
 
-delay ${DELAY.LONG}
+delay ${DELAY.MEDIUM}
 
 -- Click the chosun archive post
 tell application "samu-webbrowser"
@@ -290,7 +302,7 @@ tell application "samu-webbrowser"
   "
 end tell
 
-delay ${DELAY.LONG}
+delay ${DELAY.MEDIUM}
 `;
 
   runOsascript(script);

@@ -135,7 +135,7 @@ tell application "System Events"
   keystroke return
 end tell
 
-delay ${DELAY.LONG}
+delay ${DELAY.MEDIUM}
 
 tell application "samu-webbrowser"
   set activeTab to active tab of front window
