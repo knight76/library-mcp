@@ -57,14 +57,16 @@ describe("findPublication — substring single match", () => {
 });
 
 describe("findPublication — ambiguous", () => {
-  it('"신문" is ambiguous (matches multiple Korean newspapers)', () => {
+  it('"신문" is ambiguous (matches multiple Korean newspapers + pressreader subtitle)', () => {
     const r = findPublication("신문");
     expect(r.kind).toBe("ambiguous");
     if (r.kind === "ambiguous") {
       const ids = r.matches.map(p => p.id);
+      // pressreader subtitle "전세계 신문/잡지 메인" also contains "신문"
+      expect(ids).toContain("pressreader");
       expect(ids).toContain("hankyoreh");
       expect(ids).toContain("kyunghyang");
-      expect(ids.length).toBeGreaterThanOrEqual(2);
+      expect(ids.length).toBe(3);
     }
   });
 });
