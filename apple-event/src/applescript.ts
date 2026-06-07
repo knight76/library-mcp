@@ -19,7 +19,7 @@ export function getLoginScript(creds: Credentials): string {
   const safePassword = escapeForJS(creds.password);
 
   return `
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   activate
   open location "${NL_LOGIN_URL}"
   delay ${DELAY.MEDIUM}
@@ -36,7 +36,7 @@ end tell
 
 delay ${DELAY.SHORT}
 
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   set activeTab to active tab of front window
 
   set hasLoginForm to execute activeTab javascript "
@@ -96,7 +96,7 @@ end tell
 export function getNavigateToPressReaderScript(creds: Credentials): string {
   return getLoginScript(creds) + `
 
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   set activeTab to active tab of front window
   execute activeTab javascript "window.location.href = '${NL_NEWS_URL}';"
 
@@ -132,7 +132,7 @@ end tell
 
 delay ${DELAY.LONG}
 
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   set activeTab to active tab of front window
 
   execute activeTab javascript "

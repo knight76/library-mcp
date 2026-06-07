@@ -97,7 +97,7 @@ async function openNewspaper(urlPath: string, successMessage: string): Promise<s
   const additionalScript = `
 delay ${DELAY.MEDIUM}
 
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   set activeTab to active tab of front window
 
   execute activeTab javascript "window.location.href = '${fullUrl}';"
@@ -105,7 +105,7 @@ end tell
 
 delay ${DELAY.MEDIUM}
 
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   set activeTab to active tab of front window
 
   execute activeTab javascript "
@@ -116,7 +116,7 @@ end tell
 
 delay ${DELAY.MEDIUM}
 
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   set activeTab to active tab of front window
 
   execute activeTab javascript "
@@ -133,7 +133,7 @@ end tell
 
 delay ${DELAY.MEDIUM}
 
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   set activeTab to active tab of front window
 
   execute activeTab javascript "
@@ -155,14 +155,14 @@ async function openOreillyEbook(): Promise<string> {
 
   const script = getLoginScript(creds) + `
 
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   set activeTab to active tab of front window
   execute activeTab javascript "window.location.href = '${oreillyPageUrl}';"
 end tell
 
 delay ${DELAY.LONG}
 
-tell application "Google Chrome"
+tell application "samu-webbrowser"
   set activeTab to active tab of front window
 
   execute activeTab javascript "
