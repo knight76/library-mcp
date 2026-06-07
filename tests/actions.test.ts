@@ -15,7 +15,7 @@ vi.mock("node:child_process", () => ({
   execSync: vi.fn(),
 }));
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { execSync } from "node:child_process";
 import {
   loadCredentials,
@@ -135,5 +135,21 @@ describe("openPublication dispatcher", () => {
       type: "newspaper", handler: "newspaper", // urlPath missing on purpose
     };
     await expect(openPublication(pub)).rejects.toThrow(/no urlPath/);
+    // dispatcher must reject BEFORE any temp file is written (password safety)
+    expect(writeFileSync).not.toHaveBeenCalled();
+    expect(execSync).not.toHaveBeenCalled();
+  });
+
+  it("unlinks the temp script even when osascript throws (password file cleanup)", async () => {
+    vi.mocked(execSync).mockImplementation(() => {
+      throw new Error("osascript exploded");
+    });
+    const pub: Publication = {
+      id: "pressreader", title: "PressReader", subtitle: "x",
+      type: "service", handler: "pressreader",
+    };
+    await expect(openPublication(pub)).rejects.toBeInstanceOf(ScriptExecutionError);
+    expect(writeFileSync).toHaveBeenCalledTimes(1);
+    expect(unlinkSync).toHaveBeenCalledTimes(1);
   });
 });
