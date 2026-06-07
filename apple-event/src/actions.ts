@@ -103,45 +103,38 @@ tell application "samu-webbrowser"
   execute activeTab javascript "window.location.href = '${fullUrl}';"
 end tell
 
-delay ${DELAY.MEDIUM}
+delay ${DELAY.LONG}
 
+-- PressReader HotSpot welcome 모달이 간헐적으로 뜸. 떴을 때만 모달 안의
+-- 'Start reading now' 버튼을 클릭한다. (X로 닫지 않음 — Start reading
+-- now가 진행 경로이고, X는 단순 dismiss라 다음 단계가 없음.)
+-- 모달이 안 떴으면 아무것도 안 하고 publication 페이지 그대로 둔다.
+-- 추천 간행물 thumbnail에 잡히지 않도록 modal 컨테이너 안에서만 찾음.
 tell application "samu-webbrowser"
   set activeTab to active tab of front window
 
   execute activeTab javascript "
-    const alertClose = document.querySelector('a.alert-close');
-    if (alertClose) alertClose.click();
-  "
-end tell
-
-delay ${DELAY.MEDIUM}
-
-tell application "samu-webbrowser"
-  set activeTab to active tab of front window
-
-  execute activeTab javascript "
-    const noBtn = Array.from(document.querySelectorAll('button, a')).find(el =>
-      el.textContent && (
-        el.textContent.includes('아니요') ||
-        el.textContent.includes('아니오') ||
-        el.textContent.toLowerCase() === 'no'
-      )
-    );
-    if (noBtn) noBtn.click();
-  "
-end tell
-
-delay ${DELAY.MEDIUM}
-
-tell application "samu-webbrowser"
-  set activeTab to active tab of front window
-
-  execute activeTab javascript "
-    const readBtn = document.querySelector('a[href*=\\"read\\"]') ||
-                    Array.from(document.querySelectorAll('button, a')).find(el =>
-                      el.textContent && el.textContent.includes('지금 읽기')
-                    );
-    if (readBtn) readBtn.click();
+    (function(){
+      // Find the HotSpot/welcome modal container. PressReader uses a
+      // visible overlay with one of: .modal, [role=dialog], or a class
+      // containing 'hotspot'/'modal'. We require the element to be
+      // currently visible (non-zero size) to skip detached/hidden ones.
+      const candidates = document.querySelectorAll('.modal, [role=\\"dialog\\"], [class*=\\"hotspot\\" i], [class*=\\"modal\\"]');
+      let modal = null;
+      for (const el of candidates) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 200 && r.height > 200) { modal = el; break; }
+      }
+      if (!modal) return { action: 'no-modal' };
+      // Look for the primary CTA inside the modal only.
+      const cta = Array.from(modal.querySelectorAll('button, a')).find(el => {
+        const t = (el.textContent || '').trim();
+        return t === 'Start reading now' || t.toLowerCase() === 'start reading now'
+            || t === '지금 읽기' || t.toLowerCase().includes('start reading');
+      });
+      if (cta) { cta.click(); return { action: 'clicked-start-reading' }; }
+      return { action: 'modal-but-no-cta', modalClass: modal.className };
+    })();
   "
 end tell
 

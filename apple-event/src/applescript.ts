@@ -29,9 +29,14 @@ tell application "samu-webbrowser"
   delay ${DELAY.MEDIUM}
 end tell
 
+-- Repeatedly send Return to dismiss any native alert that pops up
+-- (e.g. "이미 로그인 되어 있습니다"). Native dialogs block all
+-- chrome JS evaluation, so missing one causes a -1712 timeout.
 tell application "System Events"
-  delay ${DELAY.SHORT}
-  keystroke return
+  repeat 3 times
+    delay ${DELAY.SHORT}
+    keystroke return
+  end repeat
 end tell
 
 delay ${DELAY.SHORT}
