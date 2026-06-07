@@ -188,21 +188,23 @@ delay ${DELAY.MEDIUM}
   return "O'Reilly 접속 완료";
 }
 
-async function openChosunArchive(): Promise<string> {
+async function openSejongArchive(postTitle: string, successMessage: string): Promise<string> {
   const creds = loadCredentials();
-  // 조선일보 아카이브: 세종도서관 자체 로그인 경로로 진입.
+  // 세종도서관 전자신문 아카이브 공통 경로.
   //   1. sejong.nl.go.kr 메인 진입
   //   2. 상단에 '로그아웃'이 있으면 이미 로그인됨 → 3~5 건너뜀
   //   3. 상단 '로그인' 링크 클릭
   //   4. 세종 로그인 폼(#u_id/#pword) 자격증명 채움
   //   5. #toSumbit 클릭 (native alert는 JS overwrite로 무력화)
   //   6. 전자신문 게시판 URL navigate
+  //   7. postTitle을 포함하는 게시글 클릭
   // NL(www.nl.go.kr) 로그인 단계는 건너뛴다 (subdomain 쿠키 공유 안 됨).
   const sejongHome = "https://sejong.nl.go.kr/";
   const sejongBoardUrl =
     "https://sejong.nl.go.kr/brd/NttList.do?bbsSe=BBST030&menuId=O216&upperMenuId=O200&proxyYn=Y";
   const safeUser = escapeForJS(creds.username);
   const safePass = escapeForJS(creds.password);
+  const safePostTitle = escapeForJS(postTitle);
 
   const script = `
 tell application "samu-webbrowser"
@@ -284,13 +286,13 @@ end tell
 
 delay ${DELAY.MEDIUM}
 
--- Click the chosun archive post
+-- Click the target archive post
 tell application "samu-webbrowser"
   set activeTab to active tab of front window
   execute activeTab javascript "
     (function(){
       const all = Array.from(document.querySelectorAll('a, td, tr'));
-      const target = all.find(el => (el.textContent || '').trim().includes('조선일보 아카이브'));
+      const target = all.find(el => (el.textContent || '').trim().includes('${safePostTitle}'));
       if (!target) return { clicked: false, reason: 'not-found' };
       const link = target.tagName === 'A' ? target
                  : target.querySelector('a')
@@ -306,7 +308,7 @@ delay ${DELAY.MEDIUM}
 `;
 
   runOsascript(script);
-  return "조선일보 아카이브 (세종도서관) 접속 완료";
+  return successMessage;
 }
 
 export async function openPublication(pub: Publication): Promise<string> {
@@ -318,7 +320,8 @@ export async function openPublication(pub: Publication): Promise<string> {
       return openNewspaper(pub.urlPath, `${pub.title} 열기 완료`);
     case "oreilly":
       return openOreillyEbook();
-    case "chosun-archive":
-      return openChosunArchive();
+    case "sejong-archive":
+      if (!pub.postTitle) throw new Error(`Publication ${pub.id} has handler=sejong-archive but no postTitle`);
+      return openSejongArchive(pub.postTitle, `${pub.title} 아카이브 (세종도서관) 접속 완료`);
   }
 }

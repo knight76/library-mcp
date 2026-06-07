@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { publications, type Publication } from "../src/publications.js";
 
 describe("publications data", () => {
-  it("has exactly 14 entries", () => {
-    expect(publications).toHaveLength(14);
+  it("has exactly 15 entries", () => {
+    expect(publications).toHaveLength(15);
   });
 
   it("has unique ids", () => {

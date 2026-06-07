@@ -48,12 +48,12 @@ describe("TOOLS", () => {
 });
 
 describe("handleCallTool — list_publications", () => {
-  it("returns JSON array with 14 entries", async () => {
+  it("returns JSON array with 15 entries", async () => {
     const res = await handleCallTool(callRequest("list_publications"));
     expect(res.isError).toBeFalsy();
     const text = (res.content[0] as { text: string }).text;
     const parsed = JSON.parse(text);
-    expect(parsed).toHaveLength(14);
+    expect(parsed).toHaveLength(15);
     expect(parsed[0]).toHaveProperty("id");
     expect(parsed[0]).toHaveProperty("title");
   });

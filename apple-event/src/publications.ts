@@ -1,5 +1,5 @@
 export type PublicationType = "service" | "newspaper" | "magazine";
-export type Handler = "pressreader" | "newspaper" | "oreilly" | "chosun-archive";
+export type Handler = "pressreader" | "newspaper" | "oreilly" | "sejong-archive";
 
 export interface Publication {
   id: string;
@@ -8,6 +8,8 @@ export interface Publication {
   type: PublicationType;
   handler: Handler;
   urlPath?: string;
+  // sejong-archive: 세종도서관 전자신문 게시판에서 클릭할 게시글 제목의 부분 문자열
+  postTitle?: string;
 }
 
 export const publications: Publication[] = [
@@ -18,14 +20,14 @@ export const publications: Publication[] = [
   { id: "hankyoreh",       title: "한겨레 신문",          subtitle: "한겨레",                          type: "newspaper", handler: "newspaper", urlPath: "/ko/newspapers/n/hankyoreh" },
   { id: "kyunghyang",      title: "경향신문",             subtitle: "경향신문",                        type: "newspaper", handler: "newspaper", urlPath: "/ko/newspapers/n/kyunghyang" },
   { id: "maeil",           title: "매일경제",             subtitle: "Maeil Business Newspaper",       type: "newspaper", handler: "newspaper", urlPath: "/ko/newspapers/n/maeil-business-newspaper" },
-  { id: "donga",           title: "동아일보",             subtitle: "동아일보",                        type: "newspaper", handler: "newspaper", urlPath: "/ko/newspapers/n/dong-a-ilbo" },
+  { id: "donga",           title: "동아일보",             subtitle: "동아일보 아카이브 (세종도서관)",    type: "newspaper", handler: "sejong-archive", postTitle: "동아일보 아카이브" },
   { id: "joongang",        title: "중앙일보",             subtitle: "중앙일보",                        type: "newspaper", handler: "newspaper", urlPath: "/ko/newspapers/n/joongang-ilbo" },
   { id: "cine21",          title: "씨네21",               subtitle: "씨네21",                          type: "magazine",  handler: "newspaper", urlPath: "/ko/magazines/m/cine21" },
   { id: "washington-post", title: "Washington Post",     subtitle: "The Washington Post",            type: "newspaper", handler: "newspaper", urlPath: "/ko/newspapers/n/the-washington-post" },
   { id: "level",           title: "Level",               subtitle: "Level (Game Magazine)",          type: "magazine",  handler: "newspaper", urlPath: "/ko/magazines/m/level" },
   { id: "wired",           title: "Wired",               subtitle: "Wired Magazine",                 type: "magazine",  handler: "newspaper", urlPath: "/ko/magazines/m/wired" },
   { id: "opensource",      title: "Open Source For You", subtitle: "Open Source Magazine",           type: "magazine",  handler: "newspaper", urlPath: "/ko/magazines/m/open-source-for-you" },
-  { id: "chosun",          title: "조선일보",             subtitle: "조선일보 아카이브 (NL Web DB)",    type: "newspaper", handler: "chosun-archive" },
+  { id: "chosun",          title: "조선일보",             subtitle: "조선일보 아카이브 (세종도서관)",    type: "newspaper", handler: "sejong-archive", postTitle: "조선일보 아카이브" },
 ];
 
 export type FindResult =
