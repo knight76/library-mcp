@@ -192,14 +192,16 @@ async function openSejongArchive(postTitle: string, successMessage: string): Pro
   const creds = loadCredentials();
   // 세종도서관 전자신문 아카이브 공통 경로.
   //   1. sejong.nl.go.kr 메인 진입
-  //   2. 상단에 '로그아웃'이 있으면 이미 로그인됨 → 3~5 건너뜀
-  //   3. 상단 '로그인' 링크 클릭
-  //   4. 세종 로그인 폼(#u_id/#pword) 자격증명 채움
-  //   5. #toSumbit 클릭 (native alert는 JS overwrite로 무력화)
-  //   6. 전자신문 게시판 URL navigate
-  //   7. postTitle을 포함하는 게시글 클릭
+  //   2. 상단에 '로그아웃' 있으면 이미 로그인됨 → 3 건너뜀
+  //                     '로그인' 있으면 로그아웃 상태 → 3 수행
+  //   3. https://sejong.nl.go.kr/html/c7/c701.jsp 직접 navigate →
+  //      #u_id / #pword 채우고 onclick에 'formLogin' 들어있는 로그인
+  //      버튼 클릭 (native alert는 JS overwrite로 무력화)
+  //   4. 전자신문 게시판 URL navigate
+  //   5. postTitle을 포함하는 게시글 클릭
   // NL(www.nl.go.kr) 로그인 단계는 건너뛴다 (subdomain 쿠키 공유 안 됨).
   const sejongHome = "https://sejong.nl.go.kr/";
+  const sejongLoginPage = "https://sejong.nl.go.kr/html/c7/c701.jsp";
   const sejongBoardUrl =
     "https://sejong.nl.go.kr/brd/NttList.do?bbsSe=BBST030&menuId=O216&upperMenuId=O200&proxyYn=Y";
   const safeUser = escapeForJS(creds.username);
@@ -207,20 +209,14 @@ async function openSejongArchive(postTitle: string, successMessage: string): Pro
   const safePostTitle = escapeForJS(postTitle);
 
   const script = `
+-- Background-friendly: 'activate' 안 함. samu-webbrowser의 CDP
+-- dialog auto-dismiss가 native alert/confirm을 자동 처리하므로
+-- System Events keystroke도 불필요.
 tell application "samu-webbrowser"
-  activate
   open location "${sejongHome}"
   delay ${DELAY.MEDIUM}
   set activeTab to active tab of front window
   delay ${DELAY.SHORT}
-end tell
-
--- Dismiss any popup/banner on first visit
-tell application "System Events"
-  repeat 2 times
-    delay ${DELAY.SHORT}
-    keystroke return
-  end repeat
 end tell
 
 delay ${DELAY.SHORT}
@@ -238,20 +234,19 @@ tell application "samu-webbrowser"
 end tell
 
 if isLoggedIn is "false" then
-  -- Click the top-nav '로그인' link
+  -- Navigate directly to the login page. (홈의 '로그인' 링크를 클릭하면
+  -- 같은 페이지로 가지만 직접 가는 것이 더 robust.)
   tell application "samu-webbrowser"
     set activeTab to active tab of front window
-    execute activeTab javascript "
-      const links = Array.from(document.querySelectorAll('a'));
-      const login = links.find(a => (a.textContent || '').trim() === '로그인');
-      if (login) login.click();
-    "
+    execute activeTab javascript "window.location.href = '${sejongLoginPage}';"
   end tell
 
   delay ${DELAY.MEDIUM}
+  delay ${DELAY.MEDIUM}
 
-  -- Override window.alert/confirm BEFORE clicking #toSumbit so the native
-  -- "로그인 되었습니다." dialog never blocks subsequent JS evaluation.
+  -- Fill credentials + click the 로그인 button.
+  -- 로그인 버튼: id 없음, onclick에 'formLogin' 포함. 직접 formLogin()
+  -- 호출은 native dialog로 hang되는 경우가 있어 버튼 click이 안전.
   tell application "samu-webbrowser"
     set activeTab to active tab of front window
     execute activeTab javascript "
@@ -269,11 +264,16 @@ if isLoggedIn is "false" then
         p.dispatchEvent(new Event('input', {bubbles:true}));
         p.dispatchEvent(new Event('change', {bubbles:true}));
       }
-      const btn = document.getElementById('toSumbit');
-      if (btn) btn.click();
+      const btn = Array.from(document.querySelectorAll('button, a, input[type=button], input[type=submit]'))
+        .find(el => (el.getAttribute('onclick') || '').indexOf('formLogin') !== -1);
+      // setTimeout으로 fire-and-forget: formLogin이 동기 XHR/dialog로
+      // AppleEvent JS 호출을 막지 않도록 함. AppleScript의 delay가
+      // 실제 로그인 완료를 기다린다.
+      if (btn) setTimeout(function(){ btn.click(); }, 0);
     "
   end tell
 
+  delay ${DELAY.MEDIUM}
   delay ${DELAY.MEDIUM}
   delay ${DELAY.MEDIUM}
 end if
@@ -286,35 +286,88 @@ end tell
 
 delay ${DELAY.MEDIUM}
 
--- Click the target archive post (force same-tab navigation so the
--- fallback check below can see the viewer page in the active tab).
+-- Click the target archive post.
+-- href 형식: javascript:fn_webdbLink('2','https://www.donga.com/news/Pdf');
+-- fn_webdbLink는 isolated world에서 undefined일 수 있어, href 파싱으로
+-- 추출한 URL을 openlink proxy 경유로 직접 navigate한다. (수동 클릭 시
+-- 정상 흐름이었던 c701.jsp?returnurl=openlink.../link/n2s?url=... 와
+-- 동일한 경로로 진입.)
 tell application "samu-webbrowser"
   set activeTab to active tab of front window
   execute activeTab javascript "
     (function(){
-      // Force any popup-based navigation to stay in the current tab.
-      window.open = function(url){ if (url) window.location.href = url; return window; };
-
       const all = Array.from(document.querySelectorAll('a, td, tr'));
       const target = all.find(el => (el.textContent || '').trim().includes('${safePostTitle}'));
       if (!target) return { clicked: false, reason: 'not-found' };
       const link = target.tagName === 'A' ? target
                  : target.querySelector('a')
                  || target.closest('a');
-      if (link) {
-        link.removeAttribute('target');
-        link.removeAttribute('rel');
-        link.click();
-        return { clicked: true, href: link.href };
+      if (!link) {
+        target.click();
+        return { clicked: true, tag: target.tagName };
       }
-      target.click();
-      return { clicked: true, tag: target.tagName };
+      const href = link.getAttribute('href') || '';
+      // href 형식: javascript:fn_webdbLink('2','https://www.donga.com/news/Pdf');
+      // 두 번째 '...' 안의 URL을 추출. 따옴표 escape 회피용으로
+      // String.fromCharCode(39) (=') 사용.
+      const Q = String.fromCharCode(39);
+      const parts = href.split(Q);
+      // parts: ['javascript:fn_webdbLink(', '2', ',', 'https://...', ');']
+      const targetUrl = parts.length >= 4 ? parts[3] : '';
+      if (targetUrl) {
+        // fn_webdbLink 원본: 'https://openlink.sj-libpro.nl.go.kr/link.n2s?url=' + url
+        // (path는 link.n2s — slash가 아닌 dot, URL은 raw 연결 — encode 안 함)
+        const u = 'https://openlink.sj-libpro.nl.go.kr/link.n2s?url=' + targetUrl;
+        window.location.href = u;
+        return { clicked: true, via: 'openlink', target: targetUrl };
+      }
+      link.removeAttribute('target');
+      link.removeAttribute('rel');
+      link.click();
+      return { clicked: true, fallback: 'native-click', href: link.href };
     })();
   "
 end tell
 
 delay ${DELAY.MEDIUM}
 delay ${DELAY.MEDIUM}
+
+-- Proxy auth loop: post 클릭 후 sj-libpro proxy가 c701.jsp?returnurl=...로
+-- 여러 번 인증을 요구할 수 있다 (각 호스트마다 한 번씩). 활성 탭이
+-- c701.jsp인 동안 동일 자격증명으로 로그인 버튼을 반복 클릭.
+repeat 4 times
+  tell application "samu-webbrowser"
+    set activeTab to active tab of front window
+    set curUrl to URL of activeTab
+  end tell
+
+  if curUrl does not contain "c701.jsp" then exit repeat
+
+  tell application "samu-webbrowser"
+    set activeTab to active tab of front window
+    execute activeTab javascript "
+      window.alert = function(){};
+      window.confirm = function(){ return true; };
+      const u = document.getElementById('u_id');
+      const p = document.getElementById('pword');
+      if (u && p) {
+        u.value = '${safeUser}';
+        p.value = '${safePass}';
+        u.dispatchEvent(new Event('input', {bubbles:true}));
+        u.dispatchEvent(new Event('change', {bubbles:true}));
+        p.dispatchEvent(new Event('input', {bubbles:true}));
+        p.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+      const btn = Array.from(document.querySelectorAll('button, a, input[type=button], input[type=submit]'))
+        .find(el => (el.getAttribute('onclick') || '').indexOf('formLogin') !== -1);
+      if (btn) setTimeout(function(){ btn.click(); }, 0);
+    "
+  end tell
+
+  delay ${DELAY.MEDIUM}
+  delay ${DELAY.MEDIUM}
+  delay ${DELAY.MEDIUM}
+end repeat
 
 -- Fallback: 오늘자 PDF가 없으면 KST 기준 어제 날짜(ymd=YYYYMMDD)로 재시도
 set pdfStatus to "ok"

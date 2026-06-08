@@ -15,6 +15,7 @@ import {
   LoginFailedError,
   ScriptExecutionError,
 } from "./actions.js";
+import { downloadDongaPdf } from "./download.js";
 
 const PUBLICATION_LIST_FOR_DESCRIPTION = publications
   .map(p => `    ${p.id.padEnd(15)} | ${p.title}`)
@@ -44,6 +45,23 @@ export const TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {},
+    },
+  },
+  {
+    name: "download_publication",
+    description:
+      "지정한 매체의 오늘자 신문을 PDF로 다운로드해 한 파일로 묶어 저장합니다. " +
+      "samu-browser의 CDP 백엔드(browser_fetch_url)로 프록시 세션 그대로 받습니다. " +
+      "현재 'donga'만 지원. 저장 위치: ~/Documents/dongailbo/{YYYYMMDD}.pdf",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: '매체 id 또는 한글명 (현재는 "donga" / "동아일보"만)',
+        },
+      },
+      required: ["name"],
     },
   },
 ];
@@ -101,6 +119,35 @@ export async function handleCallTool(req: CallToolRequest): Promise<CallToolResu
 
     try {
       const msg = await serialized(() => openPublication(result.publication));
+      return textResult(msg);
+    } catch (e) {
+      if (e instanceof CredentialsError) return errorResult(e.message);
+      if (e instanceof LoginFailedError) return errorResult(e.message);
+      if (e instanceof ScriptExecutionError) return errorResult(e.message);
+      const msg = e instanceof Error ? e.message : String(e);
+      return errorResult(`예상치 못한 오류: ${msg}`);
+    }
+  }
+
+  if (toolName === "download_publication") {
+    const args = req.params.arguments as { name?: unknown } | undefined;
+    const name = typeof args?.name === "string" ? args.name : "";
+    if (name === "") {
+      return errorResult(`'name' 인자가 필요합니다. 현재 지원: donga`);
+    }
+    const result = findPublication(name);
+    if (result.kind === "not-found") {
+      return errorResult(`매체를 찾을 수 없습니다: "${name}"`);
+    }
+    if (result.kind === "ambiguous") {
+      const matchIds = result.matches.map(p => p.id).join(", ");
+      return errorResult(`매체 이름이 모호합니다: "${name}" (${matchIds})`);
+    }
+    try {
+      const msg = await serialized(async () => {
+        await openPublication(result.publication);
+        return downloadDongaPdf(result.publication);
+      });
       return textResult(msg);
     } catch (e) {
       if (e instanceof CredentialsError) return errorResult(e.message);

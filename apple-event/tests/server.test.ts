@@ -29,11 +29,12 @@ beforeEach(() => {
 });
 
 describe("TOOLS", () => {
-  it("exposes exactly two tools", () => {
-    expect(TOOLS).toHaveLength(2);
+  it("exposes exactly three tools", () => {
+    expect(TOOLS).toHaveLength(3);
     const names = TOOLS.map(t => t.name);
     expect(names).toContain("open_publication");
     expect(names).toContain("list_publications");
+    expect(names).toContain("download_publication");
   });
 
   it("open_publication description lists all 14 publication ids", () => {
